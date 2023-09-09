@@ -1,0 +1,17 @@
+http:
+  routers:
+    testapp:
+      entryPoints:
+        - https
+      rule: Host(`test.example.com`)
+      service: testapp-service
+      middlewares:
+        - error-pages-middleware@docker
+        - whitelist
+      tls:
+        certResolver: letsEncrypt
+  services:
+    testapp-service:
+      loadBalancer:
+        servers:
+          - url: http://10.0.10.XXX/

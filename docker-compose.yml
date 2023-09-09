@@ -1,0 +1,86 @@
+version: '3.8'
+services:
+  traefik:
+    image: traefik
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      HETZNER_API_KEY: ${HETZNER_API_KEY}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/traefik.yml:/traefik.yml:ro
+      - ./data/acme.json:/acme.json
+      - ./data/custom/:/custom/:ro
+      - ./data/basic.auth:/basic.auth
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=https"
+      - "traefik.http.routers.traefik.rule=Host(`${DOMAIN_PROXY}`)"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      # - "traefik.http.services.traefik-traefik.loadbalancer.server.port=888"
+      # specify basic auth file
+      - "traefik.http.middlewares.traefik-auth.basicAuth.usersFile=/basic.auth"
+      # enable basic auth and error-pages middlewares
+      - "traefik.http.routers.traefik.middlewares=traefik-auth,error-pages-middleware"
+      # global redirect to https
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=http"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    networks:
+      - webproxy
+
+  # uncomment lines below to enable error pages service
+#  error-pages:
+#    image: tarampampam/error-pages:latest
+#    container_name: error-pages
+#    restart: unless-stopped
+#    depends_on:
+#      - traefik
+#    environment:
+#      TEMPLATE_NAME: app-down
+#    labels:
+#      - "traefik.enable=true"
+#      # use as "fallback" for any NON-registered services (with priority below normal)
+#      - "traefik.http.routers.error-pages-router.rule=HostRegexp(`{host:.+}`)"
+#      - "traefik.http.routers.error-pages-router.priority=10"
+#      # should say that all of your services work on https
+#      - "traefik.http.routers.error-pages-router.entrypoints=https"
+#      - "traefik.http.routers.error-pages-router.middlewares=error-pages-middleware"
+#      # "errors" middleware settings
+#      - "traefik.http.middlewares.error-pages-middleware.errors.status=402-599"
+#      - "traefik.http.middlewares.error-pages-middleware.errors.service=error-pages-service"
+#      - "traefik.http.middlewares.error-pages-middleware.errors.query=/{status}.html"
+#      # define service properties
+#      - "traefik.http.services.error-pages-service.loadbalancer.server.port=8080"
+#      - "traefik.docker.network=webproxy"
+#    networks:
+#      - webproxy
+
+  # uncomment lines below to enable nginx app for tests
+#  nginx-or-any-another-service:
+#    image: nginx:1.21-alpine
+#    container_name: "nginx"
+#    labels:
+#      - "traefik.enable=true"
+#      - "traefik.http.routers.test-service.rule=Host(`app.$DOMAIN`)"
+#      - "traefik.http.routers.test-service.tls=true"
+#      - "traefik.http.routers.test-service.tls.certresolver=letsEncrypt"
+#      - "traefik.http.routers.test-service.entrypoints=https"
+#      - "traefik.http.routers.test-service.middlewares=error-pages-middleware,middlewares-authentik@file"
+#      - "traefik.docker.network=webproxy"
+#    networks:
+#      - webproxy
+
+networks:
+  webproxy:
+    name: webproxy
+    external: true
